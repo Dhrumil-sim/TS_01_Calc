@@ -54,6 +54,7 @@ function evaluateFunction(fn: string, arg: number): number {
         case "rand": return Math.random();
         case "ceil": return Math.ceil(arg);
         case "floor": return Math.floor(arg);
+        case "log": return log(arg);
         default: throw new Error(`Unknown function: ${fn}`);
     }
 }
@@ -70,7 +71,7 @@ export function calculate(expression: string): number | string {
 
         const operators: Set<string> = new Set(["+", "-", "*", "/", "^", "%", "!"]);
         const precedence: Record<string, number> = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3, "%": 2, "!": 4 };
-        const functions: Set<string> = new Set(["sin", "cos", "tan", "sqrt", "rand", "ceil", "floor", "log", "ln"]);
+        const functions: Set<string> = new Set(["sin", "cos", "tan", "sec", "cot", "sqrt", "ln", "log", "rand", "ceil", "floor"]);
 
         let previousToken: string | undefined = undefined;
 
@@ -81,6 +82,7 @@ export function calculate(expression: string): number | string {
             if (classifiedToken.type === "Number") {
                 outputQueue.push(parseFloat(classifiedToken.value));
             } else if (classifiedToken.type === "Operator") {
+                // Handle operator precedence and parentheses
                 while (stack.length && operators.has(stack[stack.length - 1]) &&
                     precedence[stack[stack.length - 1]] >= precedence[classifiedToken.value]) {
                     outputQueue.push(stack.pop() as string);
@@ -97,22 +99,30 @@ export function calculate(expression: string): number | string {
                 if (classifiedToken.value === "(") {
                     stack.push("(");
                 } else {
+                    // Handle closing parentheses: process everything inside
                     while (stack.length && stack[stack.length - 1] !== "(") {
                         outputQueue.push(stack.pop() as string);
                     }
                     stack.pop();  // Pop the '('
+
+                    // Handle function that follows the closing parenthesis
+                    if (stack.length && functions.has(stack[stack.length - 1])) {
+                        outputQueue.push(stack.pop() as string);
+                    }
                 }
             } else if (classifiedToken.type === "Root") {
                 stack.push(classifiedToken.value);
             }
         });
 
+        // Pop any remaining operators
         while (stack.length) {
             let poppedOperator = stack.pop();
             if (poppedOperator === "(") throw new Error("Mismatched parentheses.");
             outputQueue.push(poppedOperator as string);
         }
 
+        // Evaluate the RPN expression
         outputQueue.forEach(token => {
             if (typeof token === "number") {
                 resultStack.push(token);
@@ -140,8 +150,8 @@ export function calculate(expression: string): number | string {
 
         if (resultStack.length !== 1) throw new Error("Invalid expression result.");
 
-        const finalResult = resultStack[0];  // This ensures finalResult is initialized after processing
-        storeHistory(new Date(), expression, finalResult.toString());  // Make sure to store the result as a string
+        const finalResult = resultStack[0];
+        storeHistory(new Date(), expression, finalResult.toString());
         return finalResult;
     } catch (error: any) {
         console.error("Error: ", error.message);
