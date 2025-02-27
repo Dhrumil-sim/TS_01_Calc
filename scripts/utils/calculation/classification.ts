@@ -1,4 +1,4 @@
-type TokenType = 'Number' | 'Operator' | 'Parenthesis' | 'ModulusOpen' | 'ModulusClose' | 'TrigonometricFunction' | 'Root' | 'Factorial' | 'Log' | 'Ln' | 'MathFunction' | 'Variable' | 'FunctionStart' | 'FunctionEnd';
+type TokenType = 'UnaryOperator'|'Number' | 'Operator' | 'Parenthesis' | 'ModulusOpen' | 'ModulusClose' | 'TrigonometricFunction' | 'Root' | 'Factorial' | 'Log' | 'Ln' | 'MathFunction' | 'Variable' | 'FunctionStart' | 'FunctionEnd';
 
 type Token = {
     type: TokenType;
@@ -22,8 +22,16 @@ export function classifyToken(token: string, previousToken?: string): Token {
         return { type: 'TrigonometricFunction', value: token };
     }
 
-    if (['+', '-', '*', '/', '^', '%'].includes(token)) {
+    if (['+', '*', '/', '^', '%'].includes(token)) {
         return { type: 'Operator', value: token };
+    }
+
+    if (token === '-') {
+        if (!previousToken || ['+', '-', '*', '/', '^', '(', '%'].includes(previousToken)) {
+            return { type: 'UnaryOperator', value: token }; // Unary minus case
+        } else {
+            return { type: 'Operator', value: token }; // Normal subtraction
+        }
     }
 
     if (['(', ')'].includes(token)) {

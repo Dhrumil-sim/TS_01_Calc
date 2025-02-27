@@ -12,8 +12,17 @@ export function classifyToken(token, previousToken) {
     if (trigFunctions.includes(token)) {
         return { type: 'TrigonometricFunction', value: token };
     }
-    if (['+', '-', '*', '/', '^', '%'].includes(token)) {
+    if (['+', '*', '/', '^', '%'].includes(token)) {
         return { type: 'Operator', value: token };
+    }
+    if (token === '-') {
+        // Handle consecutive minus signs
+        if (!previousToken || ['+', '-', '*', '/', '^', '(', '%'].includes(previousToken)) {
+            // Treat `--` as addition or as a unary plus
+            return { type: 'UnaryOperator', value: '+' }; // Treat `--` as `+`
+        } else {
+            return { type: 'UnaryOperator', value: '-' }; // Normal subtraction
+        }
     }
     if (['(', ')'].includes(token)) {
         return { type: 'Parenthesis', value: token };

@@ -49,7 +49,7 @@ function evaluateFunction(fn, arg) {
         case "rand": return Math.random();
         case "ceil": return Math.ceil(arg);
         case "floor": return Math.floor(arg);
-        case "log": return log(arg);
+        case "abs": return Math.abs(arg);
         default: throw new Error(`Unknown function: ${fn}`);
     }
 }
@@ -60,12 +60,13 @@ export function calculate(expression) {
         let tokens = tokenize(expression);
         if (!tokens)
             throw new Error("Invalid tokenization.");
+        console.log(tokens);
         let stack = [];
         let outputQueue = [];
         let resultStack = [];
-        const operators = new Set(["+", "-", "*", "/", "^", "%", "!"]);
-        const precedence = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3, "%": 2, "!": 4 };
-        const functions = new Set(["sin", "cos", "tan", "sec", "cot", "sqrt", "ln", "log", "rand", "ceil", "floor"]);
+        const operators = new Set(["+", "-", "*", "/", "^", "%"]);
+        const precedence = { "+": 1, "-": 1, "*": 2, "/": 2, "^": 3, "%": 2 };
+        const functions = new Set(["sin", "cos", "tan", "sqrt", "rand", "ceil", "floor", "log", "ln", "abs"]);
         let previousToken = undefined;
         tokens.forEach(token => {
             const classifiedToken = classifyToken(token, previousToken);
@@ -73,9 +74,16 @@ export function calculate(expression) {
             if (classifiedToken.type === "Number") {
                 outputQueue.push(parseFloat(classifiedToken.value));
             }
+            else if (classifiedToken.type === "UnaryOperator") {
+                // Handling unary operators like negation
+                if (previousToken === undefined || operators.has(previousToken) || previousToken === "(") {
+                    // This is a unary operator (e.g., -3, -(2+3))
+                    outputQueue.push("NEG");
+                }
+            }
             else if (classifiedToken.type === "Operator") {
-                // Handle operator precedence and parentheses
-                while (stack.length && operators.has(stack[stack.length - 1]) &&
+                while (stack.length &&
+                    operators.has(stack[stack.length - 1]) &&
                     precedence[stack[stack.length - 1]] >= precedence[classifiedToken.value]) {
                     outputQueue.push(stack.pop());
                 }
@@ -85,10 +93,7 @@ export function calculate(expression) {
                 let number = outputQueue.pop();
                 outputQueue.push(factorial(number));
             }
-            else if (classifiedToken.type === "Log" || classifiedToken.type === "Ln") {
-                stack.push(classifiedToken.value);
-            }
-            else if (classifiedToken.type === "TrigonometricFunction" || classifiedToken.type === "MathFunction") {
+            else if (functions.has(classifiedToken.value)) {
                 stack.push(classifiedToken.value);
             }
             else if (classifiedToken.type === "Parenthesis") {
@@ -96,36 +101,38 @@ export function calculate(expression) {
                     stack.push("(");
                 }
                 else {
-                    // Handle closing parentheses: process everything inside
                     while (stack.length && stack[stack.length - 1] !== "(") {
                         outputQueue.push(stack.pop());
                     }
                     stack.pop(); // Pop the '('
-                    // Handle function that follows the closing parenthesis
                     if (stack.length && functions.has(stack[stack.length - 1])) {
-                        outputQueue.push(stack.pop());
+                        outputQueue.push(stack.pop()); // Move function to output queue
                     }
                 }
             }
-            else if (classifiedToken.type === "Root") {
-                stack.push(classifiedToken.value);
-            }
         });
-        // Pop any remaining operators
+        // Pop remaining operators from stack to outputQueue
         while (stack.length) {
             let poppedOperator = stack.pop();
             if (poppedOperator === "(")
                 throw new Error("Mismatched parentheses.");
             outputQueue.push(poppedOperator);
         }
-        // Evaluate the RPN expression
+        console.log("Postfix Notation: ", outputQueue);
+        // Evaluate Postfix Expression
         outputQueue.forEach(token => {
             if (typeof token === "number") {
                 resultStack.push(token);
             }
+            else if (token === "NEG") {
+                let value = resultStack.pop();
+                resultStack.push(-value); // Apply negation
+            }
             else if (operators.has(token)) {
                 let b = resultStack.pop();
                 let a = resultStack.pop();
+                if (a === undefined || b === undefined)
+                    throw new Error("Invalid expression result.");
                 switch (token) {
                     case "+":
                         resultStack.push(a + b);
@@ -147,26 +154,17 @@ export function calculate(expression) {
                     case "%":
                         resultStack.push(a % b);
                         break;
-                    case "!":
-                        resultStack.push(factorial(a));
-                        break;
                 }
             }
             else if (functions.has(token)) {
                 let arg = resultStack.pop();
-                resultStack.push(evaluateFunction(token, arg));
-            }
-            else if (token === "√") {
-                let val = resultStack.pop();
-                if (val < 0)
-                    throw new Error("Cannot take the square root of a negative number.");
-                resultStack.push(Math.sqrt(val));
+                resultStack.push(evaluateFunction(token, arg)); // Handle abs, sin, etc.
             }
         });
         if (resultStack.length !== 1)
             throw new Error("Invalid expression result.");
-        const finalResult = resultStack[0];
-        storeHistory(new Date(), expression, finalResult.toString());
+        const finalResult = resultStack[0]; // Final computed result
+        storeHistory(new Date(), expression, finalResult.toString()); // Store in history
         return finalResult;
     }
     catch (error) {
